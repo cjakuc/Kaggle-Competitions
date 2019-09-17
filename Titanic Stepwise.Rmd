@@ -1,0 +1,152 @@
+---
+title: "Titanic Stepwise"
+author: "Chris Jakuc"
+date: "9/16/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(Hmisc)
+library(modelr)
+library(dplyr)
+library(xtable)
+library(forcats)
+library(formattable)
+library(rvest)
+library(titanic)
+```
+
+## R Markdown
+
+Bring in titanic data set
+```{r}
+T1=titanic_train
+head(T1)
+
+# Sex
+T1_Sex=titanic_train %>%
+  group_by(Sex,Survived) %>%
+  dplyr::summarize(count=n()) %>%
+  ungroup() %>%
+  mutate(prop=count/sum(count)) %>%
+  mutate(Survived=factor(x=Survived,labels = c("Died","Survived")))
+
+# Pclass
+T1_Pclass=titanic_train %>%
+  group_by(Pclass,Survived) %>%
+  dplyr::summarize(count=n()) %>%
+  ungroup() %>%
+  mutate(prop=count/sum(count)) %>%
+  mutate(Survived=factor(x=Survived,labels = c("Died","Survived")))
+
+# # Age
+# T1_Age=titanic_train %>%
+#   mutate(Age=as.factor(Age)) %>%
+#   group_by(Age,Survived) %>%
+#   dplyr::summarize(count=n()) %>%
+#   ungroup() %>%
+#   mutate(Survived=factor(x=Survived,labels = c("Died","Survived"))) %>%
+#   mutate(Age_Bin=fct_collapse(Age,
+#                            Baby = levels(Age),which(Age==(0:2)),
+#                            Child = levels(Age),which(Age==3:17),
+#                            YoungAdult = levels(Age),which(Age==18:25),
+#                            Adult = levels(Age),which(Age==26:63),
+#                            Elderly = levels(Age),which(Age==64:80)
+#                            )) %>%
+#            group_by(Age_Bin,Survived) %>%
+#            dplyr::summarize(n=n()) %>%
+#            ungroup() %>%
+#            mutate(prop=n/sum(n))
+ 
+  
+```
+
+Visualizing some relationships between survival status and variables
+```{r}
+# Sex
+ggplot(T1_Sex)+
+  geom_col(aes(x=Sex,y=prop),fill="skyblue1")+
+  theme_dark()+
+  facet_wrap(Survived~.)+
+  theme(plot.background = element_rect(fill = "lightgray"))+
+  ggtitle("Survival Status vs Sex")
+
+# Pclass
+ggplot(T1_Pclass)+
+  geom_col(aes(x=Pclass,y=prop),fill="skyblue1")+
+  facet_wrap(Survived~.)+
+  theme_dark()+
+  theme(plot.background = element_rect(fill = "lightgray"))+
+  ggtitle("Survival States vs Pclass")
+
+# # Age
+# ggplot(T1_Age)+
+#   geom_histogram(aes(x=Age,y=count,fill="skyblue1",binwidth = 5)+
+#   facet_wrap(Survived~.)+
+#   theme_dark()+
+#   theme(plot.background = element_rect(fill = "lightgray"))+
+#   ggtitle("Survival Status vs Age")
+```
+
+
+Stepwise; Maximizing ACC
+```{r}
+library(bigstep)
+T2 <- T1[,c("Age","SibSp","Parch","Pclass","Sex")] %>%
+  mutate(Sex = factor(x=Sex,labels = c("Male"=0,"Female"=1))) %>%
+  mutate(Age=as.numeric(Age)) %>%
+  mutate(SibSp=as.numeric(SibSp)) %>%
+  mutate(Pclass=as.numeric(Pclass)) %>%
+  mutate(Sex=as.numeric(Sex)) %>%
+  mutate(Parch=as.numeric(Parch))
+
+
+set.seed(732)
+Full1 <- prepare_data(T1$Survived, T2, type = "logistic") %>%
+  reduce_matrix() %>%
+  stepwise()
+
+summary(Full1)
+
+
+
+# Full1 = glm(Survived~ Pclass+Sex+Age+SibSp+Parch+Embarked, family=binomial(link='logit'), data=T1)
+# MSE1=(summary(Full1)$sigma)^2
+# Empty = glm(Survived~1,family=binomial(link='logit'), data=T1)
+# summary(Full1)
+# step(Empty, scope= list(upper=Full1), scale=MSE1)
+```
+
+
+Plotting with test data
+```{r}
+
+# view(Full1$model)
+stepwise=glm(T1$Survived~Sex+Age+Pclass,data = T2)
+
+
+plot(stepwise$residuals~stepwise$fitted.values)
+abline(0,0)
+qqnorm(stepwise$residuals)
+qqline(stepwise$residuals)
+hist(stepwise$residuals)
+
+TEST = titanic_test[,c("Sex","Age","Pclass")] %>%
+  mutate(Sex = factor(x=Sex,labels = c("Male"=0,"Female"=1))) %>%
+  mutate(Age=as.numeric(Age)) %>%
+  mutate(Pclass=as.numeric(Pclass)) %>%
+  mutate(Sex=as.numeric(Sex))
+
+
+
+Pred=predict.glm(stepwise, newdata=TEST)
+Preds=as.data.frame(Pred)
+
+
+  
+```
+
+
+
