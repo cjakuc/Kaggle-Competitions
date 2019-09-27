@@ -133,7 +133,7 @@ qqnorm(stepwise$residuals)
 qqline(stepwise$residuals)
 hist(stepwise$residuals)
 
-TEST = titanic_test[,c("Sex","Age","Pclass")] %>%
+TEST = titanic_test[,c("Sex","Age","Pclass","PassengerId")] %>%
   mutate(Sex = factor(x=Sex,labels = c("Male"=0,"Female"=1))) %>%
   mutate(Age=as.numeric(Age)) %>%
   mutate(Pclass=as.numeric(Pclass)) %>%
@@ -144,8 +144,22 @@ TEST = titanic_test[,c("Sex","Age","Pclass")] %>%
 Pred=predict.glm(stepwise, newdata=TEST)
 Preds=as.data.frame(Pred)
 
-
+Predictions_edited <- as.data.frame(Preds,na.rm=T) %>%
+  mutate(Pred=ifelse(Pred>=.5,1,0)) %>%
+  mutate(PassengerId=TEST$PassengerId)
   
+
+Predictions_edited <- Predictions_edited[c(2,1)]
+```
+
+```{r}
+PredBar1<-Predictions_edited %>%
+  group_by(Pred) %>%
+  dplyr::summarize(n=n()) %>%
+  ungroup()
+
+ggplot(PredBar1)+
+  geom_col(aes(x=Pred,y=n))
 ```
 
 
